@@ -117,17 +117,6 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         }, 100); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle item selection
-        switch (item.getItemId()) {
-            case R.id.share_app:
-                shareApp();
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
-        }
-    }
 
 //    private void shareApp() {
 //        Intent sendIntent = new Intent();
@@ -143,7 +132,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
         // Copy the APK file to a publicly accessible directory (external storage)
         File externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File apkFile = new File(externalDir, "IQRA.apk");
+        File apkFile = new File(externalDir, "base.apk");
 
         try {
             // Copy the APK file
@@ -185,7 +174,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                     @Override
                     public void onPermissionsChecked(MultiplePermissionsReport report) {
                         if (report.areAllPermissionsGranted()) {
-                            getAllRawPDFs();
+                           getAllRawPDFs();
                         } else {
                             // Handle denied permissions if needed
                         }
@@ -200,80 +189,6 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         displayPdf("");
     }
 
-
-//    @Override
-//    protected void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//
-//        File fileBrochure = new File(Environment.getExternalStorageDirectory() + "/" + "abc.pdf");
-//        if (!fileBrochure.exists())
-//        {
-//            CopyAssetsbrochure();
-//        }
-//
-//        /** PDF reader code */
-//        File file = new File(Environment.getExternalStorageDirectory() + "/" + "abc.pdf");
-//
-//        Intent intent = new Intent(Intent.ACTION_VIEW);
-//        intent.setDataAndType(Uri.fromFile(file),"application/pdf");
-//        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-//        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-//        try
-//        {
-//            getApplicationContext().startActivity(intent);
-//        }
-//        catch (ActivityNotFoundException e)
-//        {
-////            Toast.makeText(SecondActivity.this, "NO Pdf Viewer", Toast.LENGTH_SHORT).show();
-//        }
-//    }
-
-    //method to write the PDFs file to sd card
-    private void CopyAssetsbrochure() {
-        AssetManager assetManager = getAssets();
-        String[] files = null;
-        try
-        {
-            files = assetManager.list("");
-        }
-        catch (IOException e)
-        {
-            Log.e("tag", e.getMessage());
-        }
-        for(int i=0; i<files.length; i++)
-        {
-            String fStr = files[i];
-            if(fStr.equalsIgnoreCase("hasina.pdf"))
-            {
-                InputStream in = null;
-                OutputStream out = null;
-                try
-                {
-                    in = assetManager.open(files[i]);
-                    out = new FileOutputStream(Environment.getExternalStorageDirectory() + "/" + files[i]);
-                    copyFile(in, out);
-                    in.close();
-                    in = null;
-                    out.flush();
-                    out.close();
-                    out = null;
-                    break;
-                }
-                catch(Exception e)
-                {
-                    Log.e("tag", e.getMessage());
-                }
-            }
-        }
-    }
-
-    private void copyFile(InputStream in, OutputStream out) throws IOException {
-        byte[] buffer = new byte[1024];
-        int read;
-        while((read = in.read(buffer)) != -1){
-            out.write(buffer, 0, read);
-        }
-    }
 
     public ArrayList<File> findPdf(File file) {
         ArrayList<File> arrayList = new ArrayList<>();
@@ -385,103 +300,16 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             }
         }
  launchPdfViewer();
-//        List<InputStream> pdfInputStreams = new ArrayList<>();
-//        Resources resources = getResources();
-//
-//        int resourceId = R.raw.hasina;
-//        InputStream inputStream = resources.openRawResource(resourceId);
-//        pdfInputStreams.add(inputStream);
-
-//        for (Field field : fields) {
-//            String fileName = field.getName();
-//            if (fileName.endsWith(".pdf")) {
-//                int resourceId = resources.getIdentifier(fileName, "raw", getPackageName());
-//                if (resourceId != 0) {
-//                    InputStream inputStream = resources.openRawResource(resourceId);
-//                    pdfInputStreams.add(inputStream);
-//                }
-//            }
-//        }
-//        System.out.println("Number of pdfs found : "+pdfInputStreams.size());
-//        return pdfInputStreams;
     }
 
     private void launchPdfViewer() {
         // Example: Launch PDF viewer for the first PDF file in the external folder
         File[] pdfFiles = new File(getExternalFilesDir("pdf_files").getPath()).listFiles();
+
         pdfList.addAll(Arrays.asList(pdfFiles));
 
-
-//        if (pdfFiles != null && pdfFiles.length > 0) {
-//            // Get the URI for the file using FileProvider
-//            Uri fileUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", pdfFiles[0]);
-//
-//            // Create an intent to view the PDF
-//            Intent intent = new Intent(Intent.ACTION_VIEW);
-//            intent.setDataAndType(fileUri, "application/pdf");
-//            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); // Grant permission to access the content URI
-//
-//            try {
-//                startActivity(intent);
-//            } catch (ActivityNotFoundException e) {
-//                // Handle case where no PDF viewer is available
-//                Toast.makeText(this, "No PDF Viewer", Toast.LENGTH_SHORT).show();
-//            }
-//        }
     }
 
-    public void copyRawPDFsToExternalStorage() throws IOException {
-        System.out.println("inside copy object####################################   ########################");
-        File destinationFolder = new File(Environment.getExternalStorageDirectory().getAbsolutePath()); //, "IQRA_PDFS");
-        System.out.println("Folder created#########################");
-
-        if (!destinationFolder.exists()) {
-            destinationFolder.mkdirs();
-        }
-        Resources resources = getResources();
-        File outputFile = new File(destinationFolder, "hasina");
-        int resourceId = R.raw.hasina;
-        InputStream inputStream = resources.openRawResource(resourceId);
-
-        try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = inputStream.read(buffer)) > 0) {
-                outputStream.write(buffer, 0, length);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            inputStream.close();
-        }
-        getPDFFilesFromExternalStorage();
-
-//        AssetManager assetManager = getResources().getAssets();
-//        try {
-//            String[] files = assetManager.list("raw");
-//            for (String fileName : files) {
-//                if (fileName.endsWith(".pdf")) {
-//                    InputStream inputStream = assetManager.open("raw/" + fileName);
-//                    File outputFile = new File(destinationFolder, fileName);
-//
-//                    try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-//                        byte[] buffer = new byte[1024];
-//                        int length;
-//                        while ((length = inputStream.read(buffer)) > 0) {
-//                            outputStream.write(buffer, 0, length);
-//                        }
-//                    } catch (IOException e) {
-//                        e.printStackTrace();
-//                    } finally {
-//                        inputStream.close();
-//                    }
-//                }
-//            }
-//            System.out.println("Files Number found: "+files.length);
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-    }
 
     public List<File> getPDFFilesFromExternalStorage() {
         List<File> pdfFiles = new ArrayList<>();
@@ -517,188 +345,39 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     }
 
 
+// Reading pdf from storage
 
-    public void displayPdf() {
-        recyclerView = findViewById(R.id.rv);
-        recyclerView.setHasFixedSize(true);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
-        pdfList = new ArrayList<>();
-        pdfList.addAll(findPdf(Environment.getExternalStorageDirectory()));
-        adapter = new MainAdapter(this, pdfList, this);
-        recyclerView.setAdapter(adapter);
-
-        SearchView searchView = findViewById(R.id.searchView);
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                // Not needed for this implementation
-                return false;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                adapter.getFilter().filter(newText);
-                return true;
-            }
-        });
-    }
-
-    public void openPdfFromRaw(ImageView imageView, int pageNumber) throws IOException {
-        // Copy sample.pdf from 'res/raw' folder into cache so PdfRenderer can handle it
-//        File cacheDir = this.getCacheDir();
-//        File file = new File(cacheDir, "example.pdf");
-//        try {
+//    public void displayPdf() {
+//        recyclerView = findViewById(R.id.rv);
+//        recyclerView.setHasFixedSize(true);
+//        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
+//        pdfList = new ArrayList<>();
+//        pdfList.addAll(findPdf(Environment.getExternalStorageDirectory()));
+//        adapter = new MainAdapter(this, pdfList, this);
+//        recyclerView.setAdapter(adapter);
 //
-//            copyToCache(file, R.raw.hasina);
-//        } catch (IOException ioException) {
-//            ioException.printStackTrace();
-//        }
+//        SearchView searchView = findViewById(R.id.searchView);
+//        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+//            @Override
+//            public boolean onQueryTextSubmit(String query) {
+//                // Not needed for this implementation
+//                return false;
+//            }
+//
+//            @Override
+//            public boolean onQueryTextChange(String newText) {
+//                adapter.getFilter().filter(newText);
+//                return true;
+//            }
+//        });
+//    }
 
-//        InputStream input = getAssets().open("humanity.pdf");
-//        FileOutputStream output = new FileOutputStream(file);
 
-        // We get a page from the PDF doc by calling 'open'
-//        ParcelFileDescriptor fileDescriptor =
-//                ParcelFileDescriptor.open(file,
-//                        ParcelFileDescriptor.MODE_READ_ONLY);
-//        PdfRenderer mPdfRenderer = new PdfRenderer(fileDescriptor);
-//        PdfRenderer.Page mPdfPage = mPdfRenderer.openPage(pageNumber);
-//        // Create a new bitmap and render the page contents into it
-//        Bitmap bitmap = Bitmap.createBitmap(mPdfPage.getWidth(),
-//                mPdfPage.getHeight(),
-//                Bitmap.Config.ARGB_8888);
-//        mPdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-//        // Set the bitmap in the ImageView
-//        imageView.setImageBitmap(bitmap);
-//        System.out.println("Set to image");
-    }
-
-    public void copyToCache(File file, @RawRes int pdfResource) throws IOException {
-
-        if (!file.exists()) {
-//Get input stream object to read the pdf
-            System.out.println("File found");
-            InputStream input = getResources().openRawResource(pdfResource);
-            FileOutputStream output = new FileOutputStream(file);
-            byte[] buffer = new byte[1024];
-            int size;
-            // Copy the entire contents of the file
-            while ((size = input.read(buffer)) != -1) {
-                output.write(buffer, 0, size);
-            }
-//Close the buffer
-            input.close();
-            output.close();
-        }
-    }
 
     @Override
     public void onPdfSelected(File file) {
         startActivity(new Intent(MainActivity.this,PdfActivity.class)
                 .putExtra("path",file.getAbsolutePath()));
-    }
-
-    public void commentedCode(){
-
-        //        pdfView.fromFile(file).defaultPage(0).enableSwipe(true).swipeHorizontal(false).enableDoubletap(true)
-//                .enableAnnotationRendering(false).password(null).scrollHandle(null)
-//                .onLoad(new OnLoadCompleteListener() {
-//                    public void loadComplete(int nbPages) {
-//                                SharedPreferences preferences = getSharedPreferences(filePath, MODE_PRIVATE);
-//        int lastReadPage = preferences.getInt(filePath, 0);
-//        pdfView.jumpTo(lastReadPage);
-//        pdfView.fromFile(file).onPageChange();
-//                    }
-//                })
-//                .onPageChange(new OnPageChangeListener() {
-//                    public void onPageChanged(int page, int pageCount) {
-//                        titleBar.setTitle(titleName + "(" + (page + 1) + "/" + pageCount + ")");
-//                    }
-//                })
-//                .onError(new OnErrorListener() {
-//                    public void onError(Throwable t) {
-//                        loadContentListener.onLoadFinished(false);
-//                        t.printStackTrace();
-//                    }
-//                }).load();
-
-
-
-/////////////////////////////////////////////////////////////////////
-
-//        SharedPreferences preferences = getSharedPreferences(file.getAbsolutePath(), MODE_PRIVATE);
-//        int lastReadPage = preferences.getInt(file.getAbsolutePath(), 0);
-//        pdfView.jumpTo(lastReadPage);
-//        pdfView.fromFile(file).onPageChange()
-
-//        if(pdfView!=null){
-//            pdfView.setOnPageChangeListener(new OnPageChangeListener() {
-//                @Override
-//                public void onPageChanged(int page, int pageCount) {
-//                    SharedPreferences preferences = getSharedPreferences("last_read", MODE_PRIVATE);
-//                    SharedPreferences.Editor editor = preferences.edit();
-//                    editor.putInt("last_read_page", page);
-//                    editor.apply();
-//                }
-//            });
-//        }
-        //        TextView button = findViewById(R.id.buttonRead);
-//
-//        ImageView image = findViewById(R.id.image2);
-//
-//        button.setOnClickListener(new View.OnClickListener() {
-//
-//            @Override
-//            public void onClick(View v) {
-//                try {
-//                    openPdfFromRaw(image, 10);
-//                } catch (IOException e) {
-//                    e.printStackTrace();
-//                }
-////                InputStream input = context.getAssets().open(FILENAME);
-////                FileOutputStream output = new FileOutputStream(file);
-//// where 'file' comes from :
-////                File file = new File(context.getCacheDir(), FILENAME);
-////                InputStream in = null;
-////
-////                try {
-////                 in =  getAssets().open("Humanity.pdf");
-////                } catch (FileNotFoundException e) {
-////                    e.printStackTrace();
-////                } catch (IOException e) {
-////                    e.printStackTrace();
-////                }
-//
-////                PdfRenderer rn = new PdfRenderer(in);
-//
-////                try {
-////                    if (in.exists()) {
-////                        Uri path = Uri.fromFile(pdfFile);
-////                        Intent objIntent = new Intent(Intent.ACTION_VIEW);
-////                        objIntent.setDataAndType(path, "application/pdf");
-////                        objIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-////                        startActivity(objIntent);
-////                    } else {
-////                        Toast.makeText(MainActivity.this, "File NotFound",
-////                                Toast.LENGTH_SHORT).show();
-////                    }
-////                } catch (ActivityNotFoundException e) {
-////                    Toast.makeText(MainActivity.this,
-////                                    "No Viewer Application Found", Toast.LENGTH_SHORT)
-////                            .show();
-////                } catch (Exception e) {
-////                    e.printStackTrace();
-////                }
-//            }
-//        });
-//    }
-//    private void copyFile(InputStream in, OutputStream out) throws IOException {
-//        byte[] buffer = new byte[1024];
-//        int read;
-//        while((read = in.read(buffer)) != -1){
-//            out.write(buffer, 0, read);
-//        }
-//    }
     }
 
 }
