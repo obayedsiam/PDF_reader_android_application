@@ -8,6 +8,11 @@
         android:title="Share App" />
 
     <item
+        android:id="@+id/nav_links"
+        android:title="Share Links" />
+
+
+    <item
         android:id="@+id/nav_settings"
         android:title="Settings" />
 

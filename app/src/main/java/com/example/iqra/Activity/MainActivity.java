@@ -15,6 +15,7 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
@@ -30,7 +31,9 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.CheckBox;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,6 +50,10 @@ import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 import com.karumi.dexter.listener.single.PermissionListener;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -59,6 +66,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import androidx.appcompat.app.AlertDialog;
 
 public class MainActivity extends AppCompatActivity implements OnPdfSelectListener {
 
@@ -68,6 +76,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
     private Handler handler = new Handler();
     private Runnable runnable;
+
+    private Toolbar toolbar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
                 // Initialize toolbar and navigation drawer if no action bar is set
                 if (getSupportActionBar() == null) {
-                    Toolbar toolbar = findViewById(R.id.toolbar);
+                    toolbar = findViewById(R.id.toolbar);
                     setSupportActionBar(toolbar);
 
                     DrawerLayout drawer = findViewById(R.id.drawer_layout);
@@ -99,73 +109,171 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                             // Handle navigation view item clicks here
                             switch (item.getItemId()) {
                                 case R.id.share_app:
-                                    shareApp();
+                                    shareText("");
                                     return true;
                                 case R.id.nav_settings:
                                     // Handle settings click
                                     return true;
+                                case R.id.nav_links:
+                                    // Show pop-up menu
+                                    showCustomPopupMenu();
                                 default:
                                     return false;
                             }
                         }
                     });
                 }
-
                 // Request runtime permissions
                 runtimePermission();
             }
         }, 100); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
     }
 
+    private void showCustomPopupMenu() {
+        // Inflate the custom layout
+        View popupView = getLayoutInflater().inflate(R.layout.popup_menu_layout, null);
 
-//    private void shareApp() {
-//        Intent sendIntent = new Intent();
-//        sendIntent.setAction(Intent.ACTION_SEND);
-//        sendIntent.putExtra(Intent.EXTRA_TEXT, "Check out this cool app!");
-//        sendIntent.setType("text/plain");
-//        startActivity(Intent.createChooser(sendIntent, "Share via"));
-//    }
+        // Create a dialog to show the layout
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setView(popupView);
+        builder.setTitle("Select Links");
 
-    private void shareApp() {
-        // Get the path of the APK file in your app's private directory
-        String apkFilePath = getApplicationContext().getPackageCodePath();
+        // Add action buttons
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                // Handle OK button click
+                // Get the state of checkboxes and perform actions accordingly
+                CheckBox facebookCheckbox = popupView.findViewById(R.id.facebook_checkbox);
+                CheckBox podcastCheckbox = popupView.findViewById(R.id.podcast_checkbox);
 
-        // Copy the APK file to a publicly accessible directory (external storage)
-        File externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File apkFile = new File(externalDir, "base.apk");
+                // Initialize other checkboxes if needed
 
-        try {
-            // Copy the APK file
-            FileInputStream in = new FileInputStream(new File(apkFilePath));
-            FileOutputStream out = new FileOutputStream(apkFile);
-            byte[] buf = new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
+                // Check the state of each checkbox
+                List<String> selectedOptions = new ArrayList<>();
+                if (facebookCheckbox.isChecked()) {
+                    selectedOptions.add("Facebook : www.facebook.com\n");
+                }
+                if (podcastCheckbox.isChecked()) {
+                    selectedOptions.add("Podcast : www.podcast.com\n");
+                }
+                // Add more options if needed
+
+                // If any checkbox is checked, send the selected strings through media
+                if (!selectedOptions.isEmpty()) {
+                    sendStringsThroughMedia(selectedOptions);
+                }
+
+                // Dismiss the dialog
+                dialog.dismiss();
             }
-            in.close();
-            out.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-            // Handle error
-            return;
+        });
+        builder.setNegativeButton("Cancel", null);
+
+        // Show the dialog
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+    }
+
+
+    private void sendStringsThroughMedia(List<String> selectedOptions) {
+        // Send the selected strings through media (e.g., share via Intent)
+        StringBuilder linkBuilder = new StringBuilder();
+        for (String link : selectedOptions) {
+            linkBuilder.append(link);
         }
+        // Example: Share via Intent
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, linkBuilder.toString());
+        startActivity(Intent.createChooser(shareIntent, "Share via"));
+    }
 
-        // Generate a FileProvider URI for the copied APK file
-        Uri apkUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".fileprovider", apkFile);
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        showShareOption(false);
+        return true;
+    }
 
-        // Create an intent to share the APK file
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        if (id == R.id.action_share) {
+            adapter.shareSelectedFiles(); // Call the method from the adapter
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    public void showShareOption(boolean show) {
+        Menu menu = toolbar.getMenu();
+        MenuItem shareMenuItem = menu.findItem(R.id.action_share);
+        if (shareMenuItem != null) {
+            shareMenuItem.setVisible(show);
+        }
+    }
+
+    public void setToolbarVisibility(boolean visible) {
+        if (getSupportActionBar() != null) {
+            if (visible) {
+                getSupportActionBar().show();
+            } else {
+                getSupportActionBar().hide();
+            }
+        }
+    }
+
+    private void shareText(String text) {
         Intent sendIntent = new Intent();
         sendIntent.setAction(Intent.ACTION_SEND);
-        sendIntent.putExtra(Intent.EXTRA_STREAM, apkUri);
-        sendIntent.setType("application/vnd.android.package-archive");
-
-        // Grant permission to the receiving app
-        sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-        // Start an activity to share the APK file
-        startActivity(Intent.createChooser(sendIntent, "Share APK via"));
+        sendIntent.putExtra(Intent.EXTRA_TEXT, text);
+        sendIntent.setType("text/plain");
+        startActivity(Intent.createChooser(sendIntent, "Share via"));
     }
+
+
+//    private void shareApp() {
+//        // Get the path of the APK file in your app's private directory
+//        String apkFilePath = "app/release/app-release.apk";
+////        String apkFilePath = getApplicationContext().getPackageCodePath();
+//
+//        // Copy the APK file to a publicly accessible directory (external storage)
+//        File externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+//        File apkFile = new File(externalDir, "app-release.apk");
+//        System.out.println("Entered into share app");
+//        try {
+//            // Copy the APK file
+//            FileInputStream in = new FileInputStream(new File(apkFilePath));
+//            FileOutputStream out = new FileOutputStream(apkFile);
+//            byte[] buf = new byte[1024];
+//            int len;
+//            while ((len = in.read(buf)) > 0) {
+//                out.write(buf, 0, len);
+//            }
+//            in.close();
+//            out.close();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//            // Handle error
+//            return;
+//        }
+//
+//        // Generate a FileProvider URI for the copied APK file
+//        Uri apkUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID + ".fileprovider", apkFile);
+//
+//        // Create an intent to share the APK file
+//        Intent sendIntent = new Intent();
+//        sendIntent.setAction(Intent.ACTION_SEND);
+//        sendIntent.putExtra(Intent.EXTRA_STREAM, apkUri);
+//        sendIntent.setType("application/vnd.android.package-archive");
+//
+//        // Grant permission to the receiving app
+//        sendIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+//
+//        // Start an activity to share the APK file
+//        startActivity(Intent.createChooser(sendIntent, "Share APK via"));
+//    }
 
     public void runtimePermission() {
         Dexter.withActivity(MainActivity.this)
