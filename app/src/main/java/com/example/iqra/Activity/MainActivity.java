@@ -2,6 +2,7 @@ package com.example.iqra.Activity;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RawRes;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
@@ -28,12 +29,15 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -66,6 +70,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+
 import androidx.appcompat.app.AlertDialog;
 
 public class MainActivity extends AppCompatActivity implements OnPdfSelectListener {
@@ -122,11 +128,47 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                             }
                         }
                     });
+
+                    // Set OnClickListener for the filter button
+                    ImageView filterButton = findViewById(R.id.filterButton);
+                    filterButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            showFilterPopupMenu();
+                        }
+                    });
                 }
                 // Request runtime permissions
-                runtimePermission();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    runtimePermission();
+                }
             }
         }, 100); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
+    }
+
+    private void showFilterPopupMenu() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        LayoutInflater inflater = getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.filter_option_layout, null);
+        builder.setView(dialogView);
+
+        @SuppressLint("UseSwitchCompatOrMaterialCode") Switch switchArticle = dialogView.findViewById(R.id.switch_article);
+        @SuppressLint("UseSwitchCompatOrMaterialCode") Switch switchLocal = dialogView.findViewById(R.id.switch_local);
+        @SuppressLint("UseSwitchCompatOrMaterialCode") Switch switchBook = dialogView.findViewById(R.id.switch_book);
+        switchLocal.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    displayPdfFromLocalStorage();
+                } else {
+                    // Handle when the local switch is turned off
+                }
+            }
+        });
+        // Set switch states or add listeners as needed
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
     }
 
     private void showCustomPopupMenu() {
@@ -275,6 +317,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 //        startActivity(Intent.createChooser(sendIntent, "Share APK via"));
 //    }
 
+    @RequiresApi(api = Build.VERSION_CODES.R)
     public void runtimePermission() {
         Dexter.withActivity(MainActivity.this)
                 .withPermissions(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -282,7 +325,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                     @Override
                     public void onPermissionsChecked(MultiplePermissionsReport report) {
                         if (report.areAllPermissionsGranted()) {
-                           getAllRawPDFs();
+//                            displayPdfFromLocalStorage();
+                           getAllRawPDFs();   // Function to read app internal pdf
                         } else {
                             // Handle denied permissions if needed
                         }
@@ -301,7 +345,9 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     public ArrayList<File> findPdf(File file) {
         ArrayList<File> arrayList = new ArrayList<>();
         File[] files = file.listFiles();
+//        System.out.println("Hello ");
 
+        if(files!=null){
             for (File singleFile : files) {
                 if (singleFile.isDirectory() && !singleFile.isHidden()) {
                     arrayList.addAll(findPdf(singleFile));
@@ -311,7 +357,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                     }
                 }
             }
-
+        }
 
         return arrayList;
     }
@@ -321,13 +367,12 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         recyclerView.setHasFixedSize(true);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
 //        pdfList = new ArrayList<>();
-
 //        pdfList.addAll(findPdf(Environment.getExternalStorageDirectory()));
 
         System.out.println("PDF List Size : "+pdfList.size());
         // Filter the list based on the search text
         List<File> filteredList = new ArrayList<>();
-        if (searchText != null && !searchText.isEmpty()) {
+        if (searchText != null || !searchText.isEmpty()) {
             for (File file : pdfList) {
                 if (file.getName().toLowerCase().contains(searchText.toLowerCase())) {
                     filteredList.add(file);
@@ -336,6 +381,10 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         } else {
             filteredList.addAll(pdfList);
             System.out.println("Filtered PDF List Size : "+filteredList.size());
+        }
+
+        if(searchText.equals("")){
+            filteredList = pdfList;
         }
 
         adapter = new MainAdapter(this, filteredList, this);
@@ -369,8 +418,9 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     public void getAllRawPDFs() {
 
         System.out.println("Entered into raw pdf folder creation ");
+
         Field[] fields = R.raw.class.getFields();
-//        System.out.println("Resource file length : "+fields.length);
+        System.out.println("Resource file length : "+fields.length);
 //
 //        System.out.println("File name in res raw :"+fields[0].getName());
 
@@ -421,12 +471,17 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
     public List<File> getPDFFilesFromExternalStorage() {
         List<File> pdfFiles = new ArrayList<>();
-        File pdfFolder = new File(Environment.getExternalStorageDirectory(), "IQRA_PDFS");
+        File pdfFolder = new File(Environment.getExternalStorageDirectory().toURI());
 
         if (pdfFolder.exists()) {
             File[] files = pdfFolder.listFiles();
             if (files != null) {
-                pdfFiles.addAll(Arrays.asList(files));
+
+                for(File file:files) {
+                    pdfFiles.addAll(Arrays.asList(file));
+                }
+//                pdfFiles.add(findPdf(files));
+//                pdfFiles.addAll(Arrays.asList(files));
             }
         }
         pdfList = pdfFiles;
@@ -448,39 +503,66 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                 return true;
             }
         });
-
+//return pdfList;
         return pdfFiles;
     }
 
 
 // Reading pdf from storage
 
-//    public void displayPdf() {
-//        recyclerView = findViewById(R.id.rv);
-//        recyclerView.setHasFixedSize(true);
-//        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
-//        pdfList = new ArrayList<>();
-//        pdfList.addAll(findPdf(Environment.getExternalStorageDirectory()));
-//        adapter = new MainAdapter(this, pdfList, this);
-//        recyclerView.setAdapter(adapter);
+    public void displayPdfFromLocalStorage() {
+        recyclerView = findViewById(R.id.rv);
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
+        pdfList = new ArrayList<>();
+//        pdfList = getPDFFilesFromExternalStorage();
+        pdfList.addAll(findPdf(Environment.getExternalStorageDirectory()));
+        System.out.println("Size of Local PDF files : "+pdfList.size());
+        adapter = new MainAdapter(this, pdfList, this);
+        recyclerView.setAdapter(adapter);
+
+        displayPdf("");
+
+        SearchView searchView = findViewById(R.id.searchView);
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                // Not needed for this implementation
+                return false;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                adapter.getFilter().filter(newText);
+                return true;
+            }
+        });
+    }
+
+
+
+//    public ArrayList<File> findPdf(File directory) {
+//        ArrayList<File> pdfFiles = new ArrayList<>();
+//        File[] files = directory.listFiles();
 //
-//        SearchView searchView = findViewById(R.id.searchView);
-//        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-//            @Override
-//            public boolean onQueryTextSubmit(String query) {
-//                // Not needed for this implementation
-//                return false;
-//            }
+//            for (File file : files) {
 //
-//            @Override
-//            public boolean onQueryTextChange(String newText) {
-//                adapter.getFilter().filter(newText);
-//                return true;
-//            }
-//        });
+//                if (file.isDirectory() && !file.isHidden()) {
+//                    // Recursive call to search PDF files in subdirectories
+//
+//                    pdfFiles.addAll(findPdf(file));
+//                } else {
+//                    // Check if the file is a PDF file
+//
+//                    if (file.getName().endsWith(".pdf")) {
+//                        System.out.println("FILE NAME : "+file.getName());
+//                        pdfFiles.add(file);
+//                    }
+//                }
+//
+//        }
+//        return pdfFiles;
 //    }
-
-
 
     @Override
     public void onPdfSelected(File file) {

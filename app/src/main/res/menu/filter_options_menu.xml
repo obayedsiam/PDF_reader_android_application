@@ -1,0 +1,17 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/filter_options_group">
+        <item
+            android:id="@+id/filter_option_article"
+            android:title="Article"
+            android:checkable="true" />
+        <item
+            android:id="@+id/filter_option_local"
+            android:title="Local"
+            android:checkable="true" />
+        <item
+            android:id="@+id/filter_option_book"
+            android:title="Book"
+            android:checkable="true" />
+        <!-- Add more options as needed -->
+    </group>
+</menu>

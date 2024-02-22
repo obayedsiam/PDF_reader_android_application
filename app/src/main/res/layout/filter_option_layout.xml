@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_weight=".7"
+    android:orientation="vertical"
+    android:paddingEnd="80dp"
+    android:paddingStart="80dp"
+    android:paddingTop="60dp"
+    android:paddingBottom="60dp"
+    android:background="@color/white">
+
+    <!-- Title TextView -->
+    <TextView
+        android:id="@+id/text_select_pdf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/select_pdf_files"
+        android:textColor="@android:color/black"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_gravity="start"
+        android:paddingBottom="8dp"/>
+
+    <!-- Space -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="8dp" />
+
+    <!-- Switches -->
+    <Switch
+        android:id="@+id/switch_article"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/article"
+        android:textColor="@android:color/black"
+        android:gravity="center_vertical|start"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+    <!-- Bottom border for switch -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/black"/>
+
+    <!-- Space -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="4dp" />
+
+    <Switch
+        android:id="@+id/switch_local"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/local"
+        android:textColor="@android:color/black"
+        android:gravity="center_vertical|start"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+    <!-- Bottom border for switch -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/black"/>
+
+    <!-- Space -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="4dp" />
+
+    <Switch
+        android:id="@+id/switch_book"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/book"
+        android:textColor="@android:color/black"
+        android:gravity="center_vertical|start"
+        tools:ignore="UseSwitchCompatOrMaterialXml" />
+
+    <!-- Bottom border for switch -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/black"/>
+
+    <!-- Add more Switch widgets for additional options -->
+
+</LinearLayout>

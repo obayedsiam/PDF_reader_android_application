@@ -8,4 +8,5 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="selected_card_color">#424242</color>
+    <color name="your_icon_tint_color">#FF4081</color>
 </resources>
