@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "929631253014",
+    "firebase_url": "https://library-91460-default-rtdb.firebaseio.com",
+    "project_id": "library-91460",
+    "storage_bucket": "library-91460.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929631253014:android:b4eff209e4fcb22e69fb37",
+        "android_client_info": {
+          "package_name": "com.example.iqra"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxOvVQhqd0pMWEjp-mqXOKQ1yyYVaH64Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

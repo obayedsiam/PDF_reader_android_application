@@ -3,6 +3,7 @@ package com.example.iqra.Activity;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Handler;
+import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -12,6 +13,7 @@ import android.widget.Filterable;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.iqra.R;
@@ -29,6 +31,10 @@ public class MainAdapter extends RecyclerView.Adapter<MainViewHolder> implements
     private List<File> pdfFiles;
     private List<File> pdfListFiltered;
     private OnPdfSelectListener listener;
+    private List<File> selectedFiles = new ArrayList<>(); // To track selected files
+    private boolean isSelectionMode = false; // To track if we're in selection mode
+
+    private SparseBooleanArray selectedItems = new SparseBooleanArray();  // To track selected items
 
     public MainAdapter(Context context, List<File> pdfFiles, OnPdfSelectListener listener) {
         this.context = context;
@@ -46,50 +52,70 @@ public class MainAdapter extends RecyclerView.Adapter<MainViewHolder> implements
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public void onBindViewHolder(@NonNull MainViewHolder holder, @SuppressLint("RecyclerView") int position) {
+        File pdfFile = pdfFiles.get(position);
         holder.txtName.setText(pdfFiles.get(position).getName());
         holder.txtName.setSelected(true);
         holder.pdfSize.setText(getFileSize(pdfFiles.get(position)));
-//        holder.lastAccessDate.setText("");
-//        holder.lastAccessDate.setText(getLastAccessDate(pdfFiles.get(position)));
 
-        holder.cardView.setOnClickListener(new View.OnClickListener(){
-            @Override
-            public void onClick(View v) {
-              listener.onPdfSelected(pdfFiles.get(position));
+        // Highlight if the item is selected
+        holder.itemView.setSelected(selectedItems.get(position, false));
+
+        holder.cardView.setOnClickListener(v -> listener.onPdfSelected(pdfFiles.get(position)));
+
+        holder.cardView.setOnClickListener(v -> {
+            if (isSelectionMode) {
+                toggleSelection(pdfFile);
+            } else {
+                listener.onPdfSelected(pdfFile);
             }
         });
 
-        holder.cardView.setOnTouchListener(new View.OnTouchListener() {
-            private final Handler handler = new Handler();
-            private boolean isLongPress = false;
-
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        handler.postDelayed(longPressRunnable, 2000); // 2 seconds
-                        break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        handler.removeCallbacks(longPressRunnable);
-                        if (!isLongPress) {
-                            // Perform normal click action
-                        }
-                        break;
-                }
-                return true;
+        holder.cardView.setOnLongClickListener(v -> {
+            if (!isSelectionMode) {
+                isSelectionMode = true;
+                toggleSelection(pdfFile);
             }
-
-            private Runnable longPressRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    isLongPress = true;
-                    holder.itemView.setSelected(true);
-                    System.out.println("Selection True");
-                }
-            };
+            return true;
         });
 
+        // Show selected state visually (e.g., background color change)
+        if (selectedFiles.contains(pdfFile)) {
+            holder.itemView.setBackgroundColor(ContextCompat.getColor(context, androidx.cardview.R.color.cardview_dark_background));  // Set background color
+            holder.txtName.setTextColor(ContextCompat.getColor(context, android.R.color.white));  // Set text color to white
+            holder.pdfSize.setTextColor(ContextCompat.getColor(context, android.R.color.white));  // If you want to change the size text too
+        } else {
+            holder.itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.white));
+            holder.txtName.setTextColor(ContextCompat.getColor(context, android.R.color.black));  // Set text color to white
+            holder.pdfSize.setTextColor(ContextCompat.getColor(context, android.R.color.black));
+        }
+
+    }
+    // Toggle selection of PDF file
+    @SuppressLint("NotifyDataSetChanged")
+    private void toggleSelection(File file) {
+        if (selectedFiles.contains(file)) {
+            selectedFiles.remove(file);
+            if(selectedFiles.size()==0)    isSelectionMode = false;
+        } else {
+            selectedFiles.add(file);
+        }
+
+        notifyDataSetChanged(); // Update UI for selection
+        ((MainActivity) context).updateToolbarState(selectedFiles); // Notify activity to update toolbar
+    }
+
+    public List<File> getSelectedFiles() {
+        List<File> selectedFiles = new ArrayList<>();
+        for (int i = 0; i < selectedItems.size(); i++) {
+            int key = selectedItems.keyAt(i);
+            selectedFiles.add(pdfFiles.get(key));
+        }
+        return selectedFiles;
+    }
+
+    public void clearSelection() {
+        selectedItems.clear();
+        notifyDataSetChanged();
     }
 
     public String getLastAccessDate(File file){
@@ -154,5 +180,9 @@ public class MainAdapter extends RecyclerView.Adapter<MainViewHolder> implements
                 notifyDataSetChanged();
             }
         };
+    }
+
+    public boolean isSelectionMode() {
+        return isSelectionMode;
     }
 }
