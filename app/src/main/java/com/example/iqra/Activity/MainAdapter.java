@@ -81,7 +81,7 @@ public class MainAdapter extends RecyclerView.Adapter<MainViewHolder> implements
         // Show selected state visually (e.g., background color change)
         if (selectedFiles.contains(pdfFile)) {
             holder.itemView.setBackgroundColor(ContextCompat.getColor(context, androidx.cardview.R.color.cardview_dark_background));  // Set background color
-            holder.txtName.setTextColor(ContextCompat.getColor(context, android.R.color.white));  // Set text color to white
+            holder.txtName.setTextColor(ContextCompat.getColor(context,android.R.color.white));  // Set text color to white
             holder.pdfSize.setTextColor(ContextCompat.getColor(context, android.R.color.white));  // If you want to change the size text too
         } else {
             holder.itemView.setBackgroundColor(ContextCompat.getColor(context, R.color.white));
