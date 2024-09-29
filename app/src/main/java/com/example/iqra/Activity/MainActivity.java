@@ -15,16 +15,29 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 import android.content.Intent;
+
+import com.example.iqra.entity.Book;
+import com.example.iqra.entity.Link;
+import com.example.iqra.util.FileHashUtils;
 import com.google.firebase.FirebaseApp;
 
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.Settings;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.Switch;
+import android.widget.ToggleButton;
 
 import com.example.iqra.BuildConfig;
 import com.example.iqra.R;
@@ -45,8 +58,10 @@ import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity implements OnPdfSelectListener {
 
@@ -57,6 +72,9 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     private String localBookSavedFolderName = "IQRA_PDFS";
     private ActionMode actionMode;
     private ActionModeCallback actionModeCallback = new ActionModeCallback();
+    Map<String, Book> firebaseBookList = new HashMap<>();
+    Map<String, Link> linkList = new HashMap<>();
+    Set<String> categoryFilter = new HashSet<>();
 
     private Handler handler = new Handler();
     private Runnable runnable;
@@ -66,8 +84,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         super.onCreate(savedInstanceState);
         setContentView(R.layout.loader); // Show loader layout initially
         FirebaseApp.initializeApp(this);
-        Map <String, String> firebaseBookList = new HashMap<>();
         DatabaseReference booksRef = FirebaseDatabase.getInstance().getReference("Book");
+        DatabaseReference linkReference = FirebaseDatabase.getInstance().getReference("Link");
 
         booksRef.addListenerForSingleValueEvent(new ValueEventListener() {
 
@@ -80,17 +98,48 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                         Long bookId = bookSnapshot.child("id").getValue(Long.class);
                         String bookName = bookSnapshot.child("name").getValue(String.class);
                         String bookUrl = bookSnapshot.child("url").getValue(String.class);
-                        firebaseBookList.put(bookName,bookUrl);
+                        String bookHash = bookSnapshot.child("hash").getValue(String.class);
+                        String bookCategory = bookSnapshot.child("category").getValue(String.class);
+                        categoryFilter.add(bookCategory);
+                        Book book = new Book(bookId, bookName, bookCategory, bookUrl, bookHash);
+                        firebaseBookList.put(bookName, book);
                         saveBookToLocalDatabase(categoryName, bookId, bookName, bookUrl);
                     }
                 }
                 checkAndDownloadBooks(firebaseBookList);
             }
+
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
 
             }
         });
+
+
+        linkReference.addListenerForSingleValueEvent(new ValueEventListener() {
+
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+
+                for (DataSnapshot linkSnapshot : dataSnapshot.getChildren()) {
+                    Long linkId = linkSnapshot.child("id").getValue(Long.class);
+                    String linkName = linkSnapshot.child("name").getValue(String.class);
+                    String linkUrl = linkSnapshot.child("url").getValue(String.class);
+                    Link link = new Link(linkId, linkName, linkUrl);
+                    linkList.put(linkName, link);
+                    //saveBookToLocalDatabase(categoryName, bookId, bookName, bookUrl);
+
+                }
+                checkAndDownloadBooks(firebaseBookList);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+
+            }
+        });
+
+
         // Post a delayed action to switch to the main activity layout after a certain time
         new Handler().postDelayed(new Runnable() {
             @Override
@@ -114,8 +163,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                         public boolean onNavigationItemSelected(@NonNull MenuItem item) {
                             // Handle navigation view item clicks here
                             switch (item.getItemId()) {
-                                case R.id.share_app:
-//                                    shareApp();
+                                case R.id.share_link:
+                                    shareLink();
                                     return true;
                                 case R.id.nav_settings:
                                     // Handle settings click
@@ -137,11 +186,168 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         }, 100); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
     }
 
-    // Method to share selected PDF files
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.toolbar_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_filter:
+                showFilterDialog();
+                return true;
+            // Handle other menu items
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void showFilterDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select Categories");
+
+        // Inflate the filter dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_filter, null);
+        builder.setView(dialogView);
+
+        LinearLayout switchContainer = dialogView.findViewById(R.id.switchContainer);
+        Button buttonCancel = dialogView.findViewById(R.id.buttonCancel);
+        Button buttonApply = dialogView.findViewById(R.id.buttonApply);
+
+        // Convert the categoryFilter Set to an ArrayList for easier manipulation
+        ArrayList<String> categoriesList = new ArrayList<>(categoryFilter);
+
+        // Create Switches for each category
+        for (String category : categoriesList) {
+            // Create Switch
+            Switch switchView = new Switch(this);
+            switchView.setText(category);
+            switchView.setTextOn(category);
+            switchView.setTextOff(category);
+            switchContainer.addView(switchView);
+
+            // Create a line separator
+            View line = new View(this);
+            line.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    2 // Height of the line
+            ));
+            line.setBackgroundColor(Color.GRAY); // Change color as needed
+            switchContainer.addView(line);
+        }
+
+        // Create the dialog
+        AlertDialog dialog = builder.create();
+
+        // Handle Cancel Button
+        buttonCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // Handle Apply Button
+        buttonApply.setOnClickListener(v -> {
+            Set<String> selectedCategories = new HashSet<>();
+            for (int i = 0; i < switchContainer.getChildCount(); i++) {
+                View view = switchContainer.getChildAt(i);
+                if (view instanceof Switch) {
+                    Switch switchView = (Switch) view;
+                    if (switchView.isChecked()) {
+                        selectedCategories.add(switchView.getText().toString());
+                    }
+                }
+            }
+            // Call your filter application method here
+            applyFilter(selectedCategories);
+            dialog.dismiss();
+        });
+
+        // Show the dialog after setting up the listeners
+        dialog.show();
+    }
+
+    private void applyFilter(Set<String> selectedCategories) {
+        for (Map.Entry<String, Book> entry : firebaseBookList.entrySet()) {
+            Book book = entry.getValue();
+        }
+    }
+
+    private void shareLink() {
+        // Inflate the custom dialog layout
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_share_links, null);
+        builder.setView(dialogView);
+
+        LinearLayout linkContainer = dialogView.findViewById(R.id.link_container);
+        Button buttonCancel = dialogView.findViewById(R.id.button_cancel);
+        Button buttonSend = dialogView.findViewById(R.id.button_send);
+
+        // Populate the dialog with CheckBox for each link name
+        for (Map.Entry<String, Link> entry : linkList.entrySet()) {
+            Link link = entry.getValue();
+
+            // Create a new CheckBox for each link name
+            CheckBox checkBox = new CheckBox(this);
+            checkBox.setText(link.getName());
+            checkBox.setTag(link); // Store the Link object as a tag
+            linkContainer.addView(checkBox);
+        }
+
+        AlertDialog dialog = builder.create();
+
+        // Set up the Cancel button
+        buttonCancel.setOnClickListener(v -> dialog.dismiss());
+
+        // Set up the Send button
+        buttonSend.setOnClickListener(v -> {
+            StringBuilder shareContent = new StringBuilder();
+
+            for (int i = 0; i < linkContainer.getChildCount(); i++) {
+                View view = linkContainer.getChildAt(i);
+                if (view instanceof CheckBox) {
+                    CheckBox checkBox = (CheckBox) view;
+                    if (checkBox.isChecked()) {
+                        Link link = (Link) checkBox.getTag();
+                        // Concatenate link name and URL
+                        shareContent.append(link.getName()).append(" : ").append(link.getUrl()).append("\n");
+                    }
+                }
+            }
+
+            // Convert StringBuilder to String
+            String shareText = shareContent.toString().trim();
+
+            // Call your share method with the combined string
+            shareSelectedLinks(shareText);
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    // Method to get Link object by name
+    private Link getLinkByName(String name) {
+        for (Link link : linkList.values()) {
+            if (link.getName().equals(name)) {
+                return link;
+            }
+        }
+        return null;
+    }
+
+    private void shareSelectedLinks(String shareText) {
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, shareText);
+        startActivity(Intent.createChooser(shareIntent, "Share Links"));
+    }
+
     public void shareSelectedFiles() {
         if (selectedPdfFiles != null && !selectedPdfFiles.isEmpty()) {
             Intent shareIntent = new Intent(Intent.ACTION_SEND_MULTIPLE);
-            shareIntent.setType("application/pdf");
+            shareIntent.setType("*/*");  // More general MIME type to show more apps
 
             ArrayList<Uri> files = new ArrayList<>();
             for (File pdf : selectedPdfFiles) {
@@ -150,7 +356,11 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             }
 
             shareIntent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, files);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);  // Grant URI read permissions
+
             startActivity(Intent.createChooser(shareIntent, "Share PDF files"));
+
+            ((MainAdapter) recyclerView.getAdapter()).clearSelection();
         }
     }
 
@@ -167,6 +377,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         } else if (actionMode != null) {
             // No files selected, finish the ActionMode
             actionMode.finish();
+            ((MainAdapter) recyclerView.getAdapter()).clearSelection();
         }
     }
 
@@ -174,13 +385,14 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     @Override
     public void onBackPressed() {
         if (((MainAdapter) recyclerView.getAdapter()).isSelectionMode()) {
-            ((MainAdapter) recyclerView.getAdapter()).clearSelection();
+            System.out.println(" Back Pressed #################33");
         } else {
             super.onBackPressed();
         }
+        ((MainAdapter) recyclerView.getAdapter()).clearSelection();
     }
 
-    private void checkAndDownloadBooks(Map<String, String> firebaseBookList) {
+    private void checkAndDownloadBooks(Map<String, Book> firebaseBookList) {
         // Define the "IQRA_PDFS" folder inside the Downloads directory
         System.out.println("Checking downloadable files .....");
 
@@ -193,17 +405,26 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             iqraPdfDir.mkdirs();
         }
 
-        for (Map.Entry<String, String> entry : firebaseBookList.entrySet()) {
+        for (Map.Entry<String, Book> entry : firebaseBookList.entrySet()) {
 
             String bookName = entry.getKey();  // The key is the book name
-            String bookUrl = entry.getValue(); // The value is the URL of the book
+            Book book = entry.getValue();
+            String bookUrl = book.getBookUrl(); // The value is the URL of the book
+            String hash = book.getBookHash();
 
             // Define the local file path for this book
             File localFile = new File(iqraPdfDir, bookName + ".pdf");  // Using book name to create file name
 
             if (localFile.exists()) {
                 // File already exists, skip downloading
-                System.out.println(bookName+" : File already exists");
+                boolean isCorrupted = isCorrupted(localFile, hash);
+                if (isCorrupted) {
+                    System.out.println("File Corrupted. Need to redownload");
+                    localFile.delete();
+
+                    downloadBookFromFirebase(bookUrl, bookName);
+                }
+                System.out.println(bookName + " : File already exists");
             } else {
                 // File does not exist, download it
                 System.out.println("File does not exist, downloading: " + bookName);
@@ -211,13 +432,13 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                 isNewBookDownloaded = true;
             }
         }
-        if(isNewBookDownloaded){
+        if (isNewBookDownloaded) {
             loadPdfFilesFromDirectory();
             isNewBookDownloaded = false;
         }
     }
 
-        private void saveBookToLocalDatabase(String category, Long id, String name, String url) {
+    private void saveBookToLocalDatabase(String category, Long id, String name, String url) {
 //            SQLiteDatabase db = getWritableDatabase();
 //            ContentValues values = new ContentValues();
 //            values.put("category", category);
@@ -226,7 +447,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 //            values.put("url", url);
 //
 //            db.insert("Books", null, values);
-        }
+    }
+
     private void downloadBookFromFirebase(String fileUrl, String bookName) {
         FirebaseStorage storage = FirebaseStorage.getInstance();
         StorageReference storageRef = storage.getReferenceFromUrl(fileUrl); // Use the URL to get the StorageReference
@@ -241,7 +463,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         }
 
         // Define the file inside the IQRA_PDFS folder
-        File localFile = new File(iqraPdfDir, bookName+".pdf");
+        File localFile = new File(iqraPdfDir, bookName + ".pdf");
 
         // Download the file from Firebase Storage
         storageRef.getFile(localFile).addOnSuccessListener(taskSnapshot -> {
@@ -258,18 +480,21 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         File iqraPdfDir = new File(downloadsDir, localBookSavedFolderName);
 
-        System.out.println("Directory exists : " +iqraPdfDir.exists());
+        System.out.println("Directory exists : " + iqraPdfDir.exists());
 
         // Check if the directory exists
         if (iqraPdfDir.exists() && iqraPdfDir.isDirectory()) {
             // List all files in the directory
             File[] files = iqraPdfDir.listFiles();
-            System.out.println("Total Files Found : "+files.length);
+            System.out.println("Total Files Found : " + files.length);
 
             if (files != null) {
                 for (File file : files) {
                     // Check if the file is a PDF file
-                    if (file.isFile() && file.getName().toLowerCase().endsWith(".pdf")  && !file.getName().toLowerCase().startsWith(".trashed")) {
+                    if (file.getName().toLowerCase().startsWith(".trashed")) {
+                        file.delete();
+                    }
+                    if (file.isFile() && file.getName().toLowerCase().endsWith(".pdf")) {
                         // Add the PDF file to the pdfList
                         pdfList.add(file);
                         System.out.println("PDF added: " + file.getAbsolutePath());
@@ -280,6 +505,19 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             }
         } else {
             System.out.println("Directory not found: " + iqraPdfDir.getAbsolutePath());
+        }
+    }
+
+    public boolean isCorrupted(File file, String storedHash) {
+        // Calculate the hash of the downloaded file (e.g., using MD5)
+        String calculatedHash = FileHashUtils.calculateFileHash(file, "MD5");
+
+        if (calculatedHash != null && calculatedHash.equals(storedHash)) {
+            System.out.println("File is intact and matches the hash.");
+            return false;
+        } else {
+            System.out.println("File is corrupted or tampered with. Redownloading...");
+            return true;
         }
     }
 
@@ -352,7 +590,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         recyclerView.setHasFixedSize(true);
         recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
 
-        System.out.println("PDF List Size : "+pdfList.size());
+        System.out.println("PDF List Size : " + pdfList.size());
         // Filter the list based on the search text
         List<File> filteredList = new ArrayList<>();
         if (searchText != null && !searchText.isEmpty()) {
@@ -363,7 +601,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             }
         } else {
             filteredList.addAll(pdfList);
-            System.out.println("Filtered PDF List Size : "+filteredList.size());
+            System.out.println("Filtered PDF List Size : " + filteredList.size());
         }
 
         adapter = new MainAdapter(this, filteredList, this);
@@ -396,8 +634,8 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
     @Override
     public void onPdfSelected(File file) {
-        startActivity(new Intent(MainActivity.this,PdfActivity.class)
-                .putExtra("path",file.getAbsolutePath()));
+        startActivity(new Intent(MainActivity.this, PdfActivity.class)
+                .putExtra("path", file.getAbsolutePath()));
     }
 
 

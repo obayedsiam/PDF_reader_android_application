@@ -52,29 +52,7 @@ public class PdfActivity extends AppCompatActivity  implements OnPageChangeListe
         filePath = getIntent().getStringExtra("path");
         File file = new File(filePath);
         Uri path = Uri.fromFile(file);
-//        pdfView.fromUri(path).load();
-
-        // Set listener for search bar
-//        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-//            @Override
-//            public boolean onQueryTextSubmit(String query) {
-//                return false;
-//            }
-//
-//            @Override
-//            public boolean onQueryTextChange(String newText) {
-//                if (newText.isEmpty()) {
-//                    // Clear search results if search bar is empty
-//                    pdfView.invalidate();
-//                } else {
-//                    // Highlight search results
-////                    pdfView.searchHighlight(newText);
-//                }
-//                return true;
-//            }
-//        });
-
-            fileName = file.getName();
+        fileName = file.getName();
 
         SharedPreferences preferences = getSharedPreferences(fileName, MODE_PRIVATE);
         int lastReadPage = preferences.getInt("hello", 0);

@@ -116,6 +116,7 @@ public class MainAdapter extends RecyclerView.Adapter<MainViewHolder> implements
     public void clearSelection() {
         selectedItems.clear();
         notifyDataSetChanged();
+        isSelectionMode = false;
     }
 
     public String getLastAccessDate(File file){
