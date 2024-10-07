@@ -1,6 +1,7 @@
 package com.example.iqra.Activity;
 
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -18,6 +19,8 @@ public class MainViewHolder extends RecyclerView.ViewHolder {
 
     public CardView cardView;
 
+    public ImageView imageView;
+
     public MainViewHolder(@NonNull View itemView) {
         super(itemView);
 
@@ -25,5 +28,6 @@ public class MainViewHolder extends RecyclerView.ViewHolder {
 //        lastAccessDate = itemView.findViewById(R.id.lastAccessDate);
         pdfSize = itemView.findViewById(R.id.pdfSize);
         cardView = itemView.findViewById(R.id.pdf_cardView);
+        imageView = itemView.findViewById(R.id.pdf_imageView);
     }
 }

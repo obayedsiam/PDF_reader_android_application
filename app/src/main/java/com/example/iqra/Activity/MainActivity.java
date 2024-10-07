@@ -14,13 +14,22 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.Dialog;
+import android.app.ProgressDialog;
+import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 
 import com.example.iqra.entity.Book;
 import com.example.iqra.entity.Link;
+import com.example.iqra.helper.DatabaseHelper;
+import com.example.iqra.util.DownloadCallback;
 import com.example.iqra.util.FileHashUtils;
 import com.google.firebase.FirebaseApp;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -28,16 +37,18 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.Switch;
-import android.widget.ToggleButton;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import com.example.iqra.BuildConfig;
 import com.example.iqra.R;
@@ -56,6 +67,10 @@ import com.karumi.dexter.listener.PermissionRequest;
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +82,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
     private MainAdapter adapter;
     private List<File> pdfList = new ArrayList<>();
+    public List<File> unDownloadedFileList = new ArrayList<>();
     private List<File> selectedPdfFiles = new ArrayList<>();
     private RecyclerView recyclerView;
     private String localBookSavedFolderName = "IQRA_PDFS";
@@ -75,17 +91,21 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     Map<String, Book> firebaseBookList = new HashMap<>();
     Map<String, Link> linkList = new HashMap<>();
     Set<String> categoryFilter = new HashSet<>();
-
     private Handler handler = new Handler();
     private Runnable runnable;
+    private boolean downloadCompleted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.loader); // Show loader layout initially
+
         FirebaseApp.initializeApp(this);
         DatabaseReference booksRef = FirebaseDatabase.getInstance().getReference("Book");
         DatabaseReference linkReference = FirebaseDatabase.getInstance().getReference("Link");
+
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
 
         booksRef.addListenerForSingleValueEvent(new ValueEventListener() {
 
@@ -103,10 +123,14 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                         categoryFilter.add(bookCategory);
                         Book book = new Book(bookId, bookName, bookCategory, bookUrl, bookHash);
                         firebaseBookList.put(bookName, book);
-                        saveBookToLocalDatabase(categoryName, bookId, bookName, bookUrl);
+                        dbHelper.getWritableDatabase();
+                        dbHelper.saveBookToLocalDatabase(book, db);
                     }
                 }
+                addFilterToDatabaseIfNeeded(MainActivity.this);
                 checkAndDownloadBooks(firebaseBookList);
+                loadPdfFilesFromDirectory();
+                displayPdf("");
             }
 
             @Override
@@ -130,7 +154,9 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                     //saveBookToLocalDatabase(categoryName, bookId, bookName, bookUrl);
 
                 }
-                checkAndDownloadBooks(firebaseBookList);
+//                checkAndDownloadBooks(firebaseBookList);
+//                loadPdfFilesFromDirectory();
+                displayPdf("");
             }
 
             @Override
@@ -142,10 +168,12 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
         // Post a delayed action to switch to the main activity layout after a certain time
         new Handler().postDelayed(new Runnable() {
+
             @Override
             public void run() {
                 // Set the main activity layout
                 setContentView(R.layout.activity_main);
+
                 // Initialize toolbar and navigation drawer if no action bar is set
                 if (getSupportActionBar() == null) {
                     Toolbar toolbar = findViewById(R.id.toolbar);
@@ -175,7 +203,6 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                         }
                     });
                 }
-
                 loadPdfFilesFromDirectory();
                 displayPdf("");
                 // Request runtime permissions
@@ -183,8 +210,50 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 //                    runtimePermission();
                 }
             }
-        }, 100); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
+        }, 500); // Change YOUR_DELAY_TIME to your desired delay time in milliseconds
     }
+
+
+//    public void showCircularLoader(String bookName) {
+//        // Inflate the custom loader layout
+//        LayoutInflater inflater = getLayoutInflater();
+//        View loaderView = inflater.inflate(R.layout.loader_layout, null);
+//
+//        // Create a dialog for the loader
+//        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+//        builder.setView(loaderView);
+//        builder.setCancelable(false); // Prevent closing the loader by clicking outside
+//
+//        // Get the TextView from the inflated layout and set the message
+//        TextView tvProgressMessage = loaderView.findViewById(R.id.tvProgressMessage);
+//        tvProgressMessage.setText("Downloading " + bookName + ", please wait...");
+//
+//        // Create and show the dialog
+//        AlertDialog loaderDialog = builder.create();
+//        loaderDialog.show();
+//
+//        // Call your download method and dismiss the dialog once the download completes
+//        downloadBookFromFirebase(bookUrl, bookName, new DownloadCallback() {
+//            @Override
+//            public void onDownloadComplete() {
+//                loaderDialog.dismiss();  // Dismiss the loader when download is complete
+//                Toast.makeText(MainActivity.this, bookName + " downloaded!", Toast.LENGTH_SHORT).show();
+//                loadPdfFilesFromDirectory();  // Refresh files
+//            }
+//
+//            @Override
+//            public void onDownloadFailed(String errorMessage) {
+//                loaderDialog.dismiss();  // Dismiss the loader if download fails
+//                Toast.makeText(MainActivity.this, "Failed to download " + bookName + ": " + errorMessage, Toast.LENGTH_SHORT).show();
+//            }
+//
+//            @Override
+//            public void onProgressUpdate(int progress) {
+//                // Optional: Update the message if you want to show progress
+//                tvProgressMessage.setText("Downloading " + bookName + ", " + progress + "% complete...");
+//            }
+//        });
+//    }
 
 
     @Override
@@ -192,6 +261,31 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.toolbar_menu, menu);
         return true;
+    }
+
+    public void addFilterToDatabaseIfNeeded(Context context) {
+        // Initialize the database helper
+        DatabaseHelper dbHelper = new DatabaseHelper(context);
+        SQLiteDatabase db = dbHelper.getWritableDatabase(); // Get writeable database instance
+
+        // Iterate through the Set of categories
+        for (String category : categoryFilter) {
+
+            System.out.println("Calling category database from addFilterToDatabaseIfNeeded");
+            // Check if category already exists
+            Cursor cursor = db.rawQuery("SELECT * FROM Categories WHERE name = ?", new String[]{category});
+            System.out.println("Calling successfully category database from addFilterToDatabaseIfNeeded");
+            if (!cursor.moveToFirst()) {
+                // If not found, insert it with isSelected as true (1)
+                ContentValues values = new ContentValues();
+                values.put("name", category);
+                values.put("isSelected", 1);  // True = 1, False = 0
+                db.insert("Categories", null, values);
+            }
+            cursor.close();
+        }
+
+        db.close(); // Always close the database when done
     }
 
     @Override
@@ -208,7 +302,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
     private void showFilterDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Select Categories");
+        builder.setTitle("Filter List");
 
         // Inflate the filter dialog layout
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_filter, null);
@@ -220,14 +314,22 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
 
         // Convert the categoryFilter Set to an ArrayList for easier manipulation
         ArrayList<String> categoriesList = new ArrayList<>(categoryFilter);
-
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+        boolean isAllCategorySame = dbHelper.areAllCategoriesSame();
         // Create Switches for each category
         for (String category : categoriesList) {
             // Create Switch
+
             Switch switchView = new Switch(this);
             switchView.setText(category);
             switchView.setTextOn(category);
             switchView.setTextOff(category);
+
+            if (!isAllCategorySame) {
+                boolean isSelected = dbHelper.isCategorySelected(category);
+                switchView.setChecked(isSelected);
+            }
+
             switchContainer.addView(switchView);
 
             // Create a line separator
@@ -255,11 +357,14 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                     Switch switchView = (Switch) view;
                     if (switchView.isChecked()) {
                         selectedCategories.add(switchView.getText().toString());
+                        Toast.makeText(MainActivity.this, switchView.getText().toString() + " checked", Toast.LENGTH_SHORT).show();
                     }
                 }
             }
             // Call your filter application method here
+
             applyFilter(selectedCategories);
+            displayPdf("");
             dialog.dismiss();
         });
 
@@ -268,10 +373,36 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     }
 
     private void applyFilter(Set<String> selectedCategories) {
-        for (Map.Entry<String, Book> entry : firebaseBookList.entrySet()) {
-            Book book = entry.getValue();
+        // Initialize dbHelper (if not already done)
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+//        Toast.makeText(MainActivity.this, "Applying filter", Toast.LENGTH_SHORT).show();
+
+        // Fetch all categories from the database
+        System.out.println("Calling all categories from DB");
+        List<String> allCategories = new ArrayList<>();
+
+        try {
+            allCategories = dbHelper.getAllCategories();
+//            System.out.println("All categories found");
+        } catch (Exception e) {
+            System.out.println("Error while reading values from DB " + e.getMessage());
+        }
+
+
+        for (String category : allCategories) {
+            if (selectedCategories.contains(category)) {
+                // Mark selected categories as isSelected = true
+//                System.out.println("Filter selected category : "+category);
+                dbHelper.updateCategorySelection(category, true);
+//                System.out.println("Filter selected category updated true "+category);
+            } else {
+                // Mark other categories as isSelected = false
+                dbHelper.updateCategorySelection(category, false);
+//                System.out.println("Filter selected category updated false "+category);
+            }
         }
     }
+
 
     private void shareLink() {
         // Inflate the custom dialog layout
@@ -419,43 +550,37 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                 // File already exists, skip downloading
                 boolean isCorrupted = isCorrupted(localFile, hash);
                 if (isCorrupted) {
-                    System.out.println("File Corrupted. Need to redownload");
+                    System.out.println(localFile.getName() + "is corrupted");
                     localFile.delete();
+                    unDownloadedFileList.add(localFile);
 
-                    downloadBookFromFirebase(bookUrl, bookName);
+                    System.out.println(localFile.getName() + " File added to undlownlaoded list");
+
                 }
-                System.out.println(bookName + " : File already exists");
+//                System.out.println(bookName + " : File already exists");
             } else {
-                // File does not exist, download it
-                System.out.println("File does not exist, downloading: " + bookName);
-                downloadBookFromFirebase(bookUrl, bookName);  // Download book from Firebase Storage
-                isNewBookDownloaded = true;
+                System.out.println(localFile.getName() + " File doesn't exists");
+                localFile.delete();
+                unDownloadedFileList.add(localFile);
+                System.out.println(localFile.getName() + " File added to undlownlaoded list");
+
             }
         }
-        if (isNewBookDownloaded) {
-            loadPdfFilesFromDirectory();
-            isNewBookDownloaded = false;
-        }
+
+        System.out.println("Undownloaded File size " + unDownloadedFileList.size());
     }
 
-    private void saveBookToLocalDatabase(String category, Long id, String name, String url) {
-//            SQLiteDatabase db = getWritableDatabase();
-//            ContentValues values = new ContentValues();
-//            values.put("category", category);
-//            values.put("id", id);
-//            values.put("name", name);
-//            values.put("url", url);
-//
-//            db.insert("Books", null, values);
+    private void saveBookToLocalDatabase(Book book) {
+
     }
 
-    private void downloadBookFromFirebase(String fileUrl, String bookName) {
+    public void downloadBookFromFirebase(String fileUrl, String bookName, DownloadCallback callback) {
         FirebaseStorage storage = FirebaseStorage.getInstance();
         StorageReference storageRef = storage.getReferenceFromUrl(fileUrl); // Use the URL to get the StorageReference
 
         // Define the "IQRA_PDFS" folder inside the Downloads directory
         File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File iqraPdfDir = new File(downloadsDir, localBookSavedFolderName);
+        File iqraPdfDir = new File(downloadsDir, localBookSavedFolderName); // You can use a constant or variable for the folder name
 
         // Create the directory if it doesn't exist
         if (!iqraPdfDir.exists()) {
@@ -466,14 +591,35 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
         File localFile = new File(iqraPdfDir, bookName + ".pdf");
 
         // Download the file from Firebase Storage
-        storageRef.getFile(localFile).addOnSuccessListener(taskSnapshot -> {
-        }).addOnFailureListener(exception -> {
-            // Handle any errors during download
-            System.out.println("Download failed: " + exception.getMessage());
-        });
+        storageRef.getFile(localFile)
+                .addOnProgressListener(taskSnapshot -> {
+                    // Calculate the download progress as a percentage
+                    long bytesTransferred = taskSnapshot.getBytesTransferred();
+                    long totalBytes = taskSnapshot.getTotalByteCount();
+                    int progress = (int) ((bytesTransferred * 100) / totalBytes);
+                    System.out.println("Progress : " + progress);
+                    // Call the progress update method in the callback
+                    callback.onProgressUpdate(progress);
+                })
+                .addOnSuccessListener(taskSnapshot -> {
+                    // File download succeeded
+                    System.out.println("Size before remove and after downlaod : "+unDownloadedFileList.size());
+                    boolean result = unDownloadedFileList.remove(localFile);
+                    pdfList.add(localFile);
+                    System.out.println("File removed status "+result);
+                    System.out.println("Size after remove: "+unDownloadedFileList.size());
+
+                    callback.onDownloadComplete();
+                    displayPdf("");
+                })
+                .addOnFailureListener(exception -> {
+                    // File download failed
+                    callback.onDownloadFailed(exception.getMessage());
+                });
     }
 
-    private void loadPdfFilesFromDirectory() {
+
+    public void loadPdfFilesFromDirectory() {
         // Define the "IQRA_PDFS" folder inside the Downloads directory
 
         System.out.println("Loading from directory");
@@ -516,7 +662,7 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
             System.out.println("File is intact and matches the hash.");
             return false;
         } else {
-            System.out.println("File is corrupted or tampered with. Redownloading...");
+            System.out.println("File is corrupted or tampered. Re-downloading");
             return true;
         }
     }
@@ -585,26 +731,160 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
     }
 
 
-    public void displayPdf(String searchText) {
-        recyclerView = findViewById(R.id.rv);
-        recyclerView.setHasFixedSize(true);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
+    public void showCircularLoader(String bookName) {
+        // Inflate the custom loader layout
+        LayoutInflater inflater = getLayoutInflater();
+        View loaderView = inflater.inflate(R.layout.loader_layout, null);
 
-        System.out.println("PDF List Size : " + pdfList.size());
-        // Filter the list based on the search text
+        // Create a dialog for the loader
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setView(loaderView);
+        builder.setCancelable(false); // Prevent closing the loader by clicking outside
+
+        // Get the TextView from the inflated layout and set the message
+        TextView tvProgressMessage = loaderView.findViewById(R.id.tvProgressMessage);
+        tvProgressMessage.setText("Downloading files, please wait...");
+
+        // Create and show the dialog
+        AlertDialog loaderDialog = builder.create();
+        loaderDialog.show();
+    }
+
+
+    @SuppressLint("SetTextI18n")
+    public boolean showDownloadDialog(File file) {
+
+        // Step 1: Create the first AlertDialog for Download Confirmation
+        AlertDialog.Builder alertBuilder = new AlertDialog.Builder(MainActivity.this);
+        alertBuilder.setTitle("Download " + file.getName().replace(".pdf", "") + " ?");
+        alertBuilder.setMessage("This file is not downloaded. Would you like to download it?");
+
+        // Step 2: Handle the "Download" button click
+        alertBuilder.setPositiveButton("Download", (dialog, which) -> {
+            // Step 3: Dismiss the confirmation dialog
+            dialog.dismiss();
+
+            // Step 4: Show the loader dialog
+            LayoutInflater inflater = getLayoutInflater();
+            View loaderView = inflater.inflate(R.layout.loader_layout, null);
+
+            // Get the TextView from the loader layout and set the initial message
+            TextView tvProgressMessage = loaderView.findViewById(R.id.tvProgressMessage);
+            tvProgressMessage.setText("Downloading " + file.getName().replace(".pdf", "") + ", please wait...");
+
+            AlertDialog.Builder loaderBuilder = new AlertDialog.Builder(MainActivity.this);
+            loaderBuilder.setView(loaderView);
+            loaderBuilder.setCancelable(false); // Prevent closing the loader by clicking outside
+
+            AlertDialog loaderDialog = loaderBuilder.create();
+            loaderDialog.show();
+
+            // Step 5: Proceed with the download
+            Book book = firebaseBookList.get(file.getName().replace(".pdf", "")); // Fetch book details
+
+            File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File iqraPdfDir = new File(downloadsDir, localBookSavedFolderName);
+
+            // If directory does not exist, create it
+            if (!iqraPdfDir.exists()) {
+                iqraPdfDir.mkdirs();
+            }
+
+            File localFile = new File(iqraPdfDir, book.getBookName());
+
+            // Start the download process
+            downloadBookFromFirebase(book.getBookUrl(), localFile.getName(), new DownloadCallback() {
+                @Override
+                public void onDownloadComplete() {
+                    // On Download Completion
+                    Toast.makeText(MainActivity.this, localFile.getName() + " downloaded!", Toast.LENGTH_SHORT).show();
+                    downloadCompleted = true;
+                    loaderDialog.dismiss(); // Dismiss the loader dialog after download is complete
+                }
+
+                @Override
+                public void onDownloadFailed(String errorMessage) {
+                    // Handle failure
+                    Toast.makeText(MainActivity.this, "Failed to download: " + errorMessage, Toast.LENGTH_SHORT).show();
+                    loaderDialog.dismiss(); // Dismiss the loader dialog if download fails
+                }
+
+                @Override
+                public void onProgressUpdate(int progress) {
+                    // Update the loader message with progress
+                    tvProgressMessage.setText("Downloaded " + progress + "%");
+                }
+            });
+        });
+
+        // Step 6: Handle the "Cancel" button click
+        alertBuilder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+
+        // Step 7: Show the confirmation dialog
+        AlertDialog confirmationDialog = alertBuilder.create();
+        confirmationDialog.show();
+
+        return downloadCompleted;
+    }
+
+
+    public List<File> filterTextWise(List<File> files, String searchText) {
+
         List<File> filteredList = new ArrayList<>();
+
         if (searchText != null && !searchText.isEmpty()) {
-            for (File file : pdfList) {
-                if (file.getName().toLowerCase().contains(searchText.toLowerCase())) {
+            for (File file : files) {
+                if (file.getName().toLowerCase().contains(searchText.toLowerCase())) {   // Comparing search text with the file name
                     filteredList.add(file);
                 }
             }
         } else {
-            filteredList.addAll(pdfList);
+            filteredList.addAll(files);
             System.out.println("Filtered PDF List Size : " + filteredList.size());
         }
+        return filteredList;
+    }
 
-        adapter = new MainAdapter(this, filteredList, this);
+
+    public List<File> filterCategoryWise(List<File> tempFilterList){
+
+        DatabaseHelper dbHelper = new DatabaseHelper(this);
+        boolean isAllCategorySame = dbHelper.areAllCategoriesSame();
+
+        List<File> finalFilteredList = new ArrayList<>();
+        finalFilteredList.addAll(tempFilterList);
+
+        for (File file : tempFilterList) {
+            String fileName = file.getName().substring(0, file.getName().lastIndexOf('.'));
+            Book book = dbHelper.getBookByName(fileName);
+
+            System.out.println(book.getBookName());
+            String category = book.getCategory();
+            if (category != null) {
+                System.out.println("Category : " + category);
+            }
+            if (!isAllCategorySame) {
+                boolean isThisCategorySelected = dbHelper.isCategorySelected(category);
+                System.out.println(category + " : is category Selected : " + isThisCategorySelected);
+                if (!isThisCategorySelected) {
+                    System.out.println("Removing " + category + " from list");
+                    finalFilteredList.remove(file);
+                }
+            }
+
+        }
+        finalFilteredList = removeDuplicateFilesByName(finalFilteredList);
+        return finalFilteredList;
+    }
+
+    public void setDisplayView(){
+        recyclerView = findViewById(R.id.rv);
+        recyclerView.setHasFixedSize(true);
+        recyclerView.setLayoutManager(new GridLayoutManager(this, 1));
+    }
+
+    public void placeFilesInRecycleView(List<File> displayFileList){
+        adapter = new MainAdapter(this, displayFileList, this);
         recyclerView.setAdapter(adapter);
 
         SearchView searchView = findViewById(R.id.searchView);
@@ -630,6 +910,58 @@ public class MainActivity extends AppCompatActivity implements OnPdfSelectListen
                 return true;
             }
         });
+    }
+
+
+    public void displayPdf(String searchText) {
+
+        setDisplayView();
+
+        System.out.println("PDF List Size : " + pdfList.size());
+        removeDuplicateFilesByName(pdfList);
+        removeDuplicateFilesByName(unDownloadedFileList);
+
+        System.out.println("After duplicate removal for first time pdf file size " + pdfList.size());
+
+        // Filter the list based on the search text
+
+        List<File> filteredList = filterTextWise(pdfList,searchText);
+        List<File> filteredUnDownloadedList = filterTextWise(unDownloadedFileList,searchText);
+
+        List<File> tempFilterList = new ArrayList<>();
+
+        tempFilterList.addAll(filteredList);
+        tempFilterList.addAll(filteredUnDownloadedList);
+
+        List<File> finalFilteredListForDisplay = filterCategoryWise(tempFilterList);
+
+        System.out.println("File size after category filtering for display "+finalFilteredListForDisplay.size());
+        placeFilesInRecycleView(finalFilteredListForDisplay);
+
+    }
+
+
+    public ArrayList<File> removeDuplicateFilesByName(List<File> filesList) {
+        // A set to store unique file names
+        HashSet<String> fileNamesSet = new HashSet<>();
+
+        // A new list to store files without duplicates
+        ArrayList<File> uniqueFiles = new ArrayList<>();
+
+        // Iterate through the original list
+        for (File file : filesList) {
+            String fileName = file.getName(); // Get the file name
+
+            // Check if the file name is already in the set
+            if (!fileNamesSet.contains(fileName)) {
+                // If not, add it to the set and the unique files list
+                fileNamesSet.add(fileName);
+                uniqueFiles.add(file);
+            }
+        }
+
+        // Return the list of files with duplicates removed
+        return uniqueFiles;
     }
 
     @Override
